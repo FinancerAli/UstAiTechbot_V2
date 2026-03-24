@@ -1,0 +1,2 @@
+# sotuv_bot
+UstAiTech
