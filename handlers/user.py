@@ -360,24 +360,55 @@ async def show_category_services(call: CallbackQuery):
     )
 
 
-@router.callback_query(F.data == "back_services_list")
+@router.callback_query(F.data.startswith("back_services_list"))
 async def back_to_services_list(call: CallbackQuery):
     await call.answer()
     lang = await get_lang(call.from_user.id)
+
+    parts = call.data.split(":")
+    page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+
     categories = await db.get_categories()
     stats = await db.get_stats()
     confirmed = stats["confirmed"]
+
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
+
     if not categories:
-        services = await db.get_services(only_active=True)
-        await call.message.edit_text(t(lang, "services_list", confirmed_orders=confirmed), reply_markup=services_keyboard(services, lang), parse_mode="HTML")
+        offset = (page - 1) * 10
+        services = await db.get_services(only_active=True, limit=10, offset=offset)
+        total_count = await db.get_services_count(only_active=True)
+
+        if not services and page > 1:
+            page = 1
+            offset = 0
+            services = await db.get_services(only_active=True, limit=10, offset=offset)
+
+        await call.message.answer(
+            t(lang, "services_list", confirmed_orders=confirmed),
+            reply_markup=services_keyboard(services, lang, page=page, total_count=total_count),
+            parse_mode="HTML",
+        )
         return
-    await call.message.edit_text(t(lang, "categories_list", confirmed_orders=confirmed), reply_markup=categories_keyboard(categories, lang), parse_mode="HTML")
+
+    await call.message.answer(
+        t(lang, "categories_list", confirmed_orders=confirmed),
+        reply_markup=categories_keyboard(categories, lang),
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data.startswith("service:"))
 async def service_detail(call: CallbackQuery):
     lang = await get_lang(call.from_user.id)
-    service_id = int(call.data.split(":")[1])
+
+    parts = call.data.split(":")
+    service_id = int(parts[1])
+    page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
+
     s = await db.get_service(service_id)
     if not s:
         await call.answer(t(lang, "service_not_found"), show_alert=True)
@@ -390,7 +421,7 @@ async def service_detail(call: CallbackQuery):
         desc = s_dict.get("description_ru") or s_dict.get("description_uz") or s_dict.get("description") or "-"
     else:
         desc = s_dict.get("description_uz") or s_dict.get("description") or "-"
-    
+
     badge = ""
     if avg >= 4.5: badge = f"{t(lang, 'badge_rec')} | "
     elif cnt > 10: badge = f"{t(lang, 'badge_top')} | "
@@ -401,7 +432,6 @@ async def service_detail(call: CallbackQuery):
         perc_fmt = int(perc) if perc == int(perc) else perc
         cb_bonus = int(s['price'] * perc / 100)
         cb_text = f"\n{t(lang, 'cb_perc', percent=perc_fmt)}\n{t(lang, 'cb_amount', amount=cb_bonus)}\n"
-
 
     tiers = await db.get_bulk_prices(service_id)
     bulk_text = ""
@@ -431,11 +461,15 @@ async def service_detail(call: CallbackQuery):
         await call.message.answer_photo(
             s["image_file_id"],
             caption=text,
-            reply_markup=service_detail_keyboard(service_id, lang, s["stock"]),
+            reply_markup=service_detail_keyboard(service_id, lang, s["stock"], back_page=page),
             parse_mode="HTML",
         )
     else:
-        await call.message.edit_text(text, reply_markup=service_detail_keyboard(service_id, lang, s["stock"]), parse_mode="HTML")
+        await call.message.edit_text(
+            text,
+            reply_markup=service_detail_keyboard(service_id, lang, s["stock"], back_page=page),
+            parse_mode="HTML"
+        )
 
 
 # ORDER FLOW
