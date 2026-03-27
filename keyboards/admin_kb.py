@@ -144,3 +144,46 @@ def support_reply_keyboard(user_id: int, message_id: int):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✍️ Javob berish", callback_data=f"adm_sup_reply:{user_id}:{message_id}")]
     ])
+def admin_users_keyboard(users, page: int = 0, per_page: int = 10):
+    start = page * per_page
+    end = start + per_page
+    chunk = users[start:end]
+
+    buttons = []
+    for u in chunk:
+        blocked = "🚫 " if u["is_blocked"] else ""
+        username = f"@{u['username']}" if u["username"] else f"ID {u['id']}"
+        full_name = (u["full_name"] or "").strip()
+        label = full_name if full_name else username
+
+        if len(label) > 40:
+            label = label[:37] + "..."
+
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{blocked}{label}",
+                callback_data=f"adm_user:{u['id']}"
+            )
+        ])
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"adm_users_page:{page-1}"))
+    if end < len(users):
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"adm_users_page:{page+1}"))
+
+    if nav:
+        buttons.append(nav)
+
+    buttons.append([
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"adm_users_page:{page}")
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def admin_user_detail_keyboard(user_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✉️ Xabar yuborish", callback_data=f"adm_user_msg:{user_id}")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="adm_users_page:0")],
+    ])

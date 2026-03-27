@@ -11,7 +11,7 @@ from keyboards.admin_kb import (
     admin_menu, services_manage_keyboard, service_admin_detail,
     order_action_keyboard, cancel_keyboard, confirm_delete_keyboard,
     categories_manage_keyboard, coupons_keyboard, delivery_choose_keyboard,
-    bonus_manage_keyboard,
+    bonus_manage_keyboard, admin_users_keyboard, admin_user_detail_keyboard,
 )
 from keyboards.user_kb import main_menu, STATUS_EMOJI
 from utils.excel import generate_orders_excel
@@ -422,16 +422,79 @@ async def all_users(message: Message):
     if not is_admin(message.from_user.id):
         return
     users = await db.get_all_users()
-    count = len(users)
-    text = f"\U0001f465 <b>Jami: {count}</b>\n\n"
-    for u in users[:50]:
-        blocked = " \U0001f6ab" if u["is_blocked"] else ""
-        bonus = u["bonus_balance"] if u["bonus_balance"] else 0
-        bonus_text = f" 💎{bonus:,}" if bonus > 0 else ""
-        text += f"• @{u['username'] or 'nomalum'} — {u['full_name'] or ''} (<code>{u['id']}</code>){blocked}{bonus_text}\n"
-    if count > 50:
-        text += f"\n... va yana {count - 50} ta"
-    await message.answer(text, parse_mode="HTML")
+    await message.answer(
+        f"\U0001f465 <b>Foydalanuvchilar soni:</b> {len(users)}",
+        reply_markup=admin_users_keyboard(users, page=0),
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("adm_users_page:"))
+async def adm_users_page(call: CallbackQuery):
+    if not is_admin(call.from_user.id):
+        return
+
+    page = int(call.data.split(":")[1])
+    users = await db.get_all_users()
+
+    await call.answer()
+    await call.message.edit_text(
+        f"\U0001f465 <b>Foydalanuvchilar soni:</b> {len(users)}",
+        reply_markup=admin_users_keyboard(users, page=page),
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("adm_user:"))
+async def adm_user_detail(call: CallbackQuery):
+    if not is_admin(call.from_user.id):
+        return
+
+    user_id = int(call.data.split(":")[1])
+    users = await db.get_all_users()
+    user = next((u for u in users if u["id"] == user_id), None)
+
+    if not user:
+        await call.answer("Foydalanuvchi topilmadi!", show_alert=True)
+        return
+
+    username = f"@{user['username']}" if user["username"] else "—"
+    full_name = user["full_name"] or "—"
+    blocked = "Ha" if user["is_blocked"] else "Yo'q"
+    bonus = user["bonus_balance"] or 0
+
+    text = (
+        "\U0001f464 <b>Foydalanuvchi ma'lumotlari</b>\n\n"
+        f"<b>ID:</b> <code>{user['id']}</code>\n"
+        f"<b>Username:</b> {username}\n"
+        f"<b>Ism:</b> {full_name}\n"
+        f"<b>Bloklangan:</b> {blocked}\n"
+        f"<b>Bonus:</b> {bonus:,} so'm"
+    )
+
+    await call.answer()
+    await call.message.edit_text(
+        text,
+        reply_markup=admin_user_detail_keyboard(user["id"]),
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("adm_user_msg:"))
+async def adm_user_msg_start(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        return
+
+    user_id = int(call.data.split(":")[1])
+
+    await state.update_data(reply_to_user=user_id)
+    await state.set_state(AdminReplyState.message)
+
+    await call.answer()
+    await call.message.answer(
+        "\u2709\ufe0f Foydalanuvchiga yuboriladigan xabarni yozing:",
+        reply_markup=cancel_keyboard(),
+    )
 
 
 # BLOCK / UNBLOCK
