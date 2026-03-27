@@ -127,7 +127,7 @@ def services_keyboard(services, lang="uz", page: int = 1, total_count: int = 0, 
             text_lbl += f" | 🎁 {s['cashback_percent']}% cashback"
         buttons.append([InlineKeyboardButton(
             text=text_lbl,
-            callback_data=f"service:{s['id']}"
+            callback_data=f"service:{s['id']}:{page}"
         )])
         
     nav_buttons = []
@@ -148,11 +148,11 @@ def services_keyboard(services, lang="uz", page: int = 1, total_count: int = 0, 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def service_detail_keyboard(service_id: int, lang="uz", stock: int = -1):
+def service_detail_keyboard(service_id: int, lang="uz", stock: int = -1, back_page: int = 1):
     buttons = []
     if stock > 0 or stock == -1:
         buttons.append([InlineKeyboardButton(text=t(lang, "btn_order"), callback_data=f"order:{service_id}")])
-    buttons.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data="back_services_list")])
+    buttons.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=f"back_services_list:{back_page}")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
